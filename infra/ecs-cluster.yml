@@ -1,8 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  This template deploys the necessary ECS Fargate infrastructure to run the
-  secret-mission application. It creates an ECR repository, an ECS Cluster,
-  IAM Roles, and a Task Definition.
+  This template creates the core ECS infrastructure. It uses the default VPC's
+  subnets and security group for simplicity and reliability.
 
 Parameters:
   S3BucketName:
@@ -10,94 +9,102 @@ Parameters:
     Description: The name of the S3 bucket the application needs to write to.
   DockerImageUri:
     Type: String
-    Description: The full URI of the Docker image from GHCR (e.g., ghcr.io/your-username/secret-mission:dev).
+    Description: The full URI of the Docker image to be deployed.
+  SubnetIdOne:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the first subnet for the ECS service.
+  SubnetIdTwo:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the second subnet for the ECS service.
+  DefaultSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The ID of the default security group for the VPC.
 
 Resources:
-  # 1. ECR Repository to store our Docker images
   ECRRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: secret-mission-repo
+      RepositoryName: secret-mission
 
-  # 2. ECS Cluster - A logical grouping for our services
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: secret-mission-cluster
 
-  # 3. IAM Role that the ECS Task (our container) will assume
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/secret-mission-task
+
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: ECSTaskExecutionRole
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
+            Principal: { Service: ecs-tasks.amazonaws.com }
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # 4. IAM Role to grant our application permission to write to S3
   AppTaskRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub "AppTaskRole-${AWS::StackName}"
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
+            Principal: { Service: ecs-tasks.amazonaws.com }
             Action: sts:AssumeRole
       Policies:
         - PolicyName: S3WritePolicy
           PolicyDocument:
             Statement:
               - Effect: Allow
-                Action:
-                  - s3:PutObject
-                # Grants permission ONLY to the specific bucket we created
+                Action: s3:PutObject
                 Resource: !Sub "arn:aws:s3:::${S3BucketName}/*"
 
-  # 5. Task Definition - The blueprint for our application container
-  ECSTaskDefinition:
+  TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: secret-mission-task
-      RequiresCompatibilities:
-        - FARGATE
+      RequiresCompatibilities: ["FARGATE"]
       NetworkMode: awsvpc
-      Cpu: "256" # 0.25 vCPU
-      Memory: "512" # 512MB
-      ExecutionRoleArn: !Ref ECSTaskExecutionRole
-      TaskRoleArn: !Ref AppTaskRole
+      Cpu: 256
+      Memory: 512
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt AppTaskRole.Arn
       ContainerDefinitions:
         - Name: secret-mission-container
           Image: !Ref DockerImageUri
           PortMappings:
             - ContainerPort: 8080
-          Environment:
-            - Name: SPRING_PROFILES_ACTIVE
-              Value: "production" # We'll use a production profile in AWS
-            - Name: APP_S3_BUCKET_NAME
-              Value: !Ref S3BucketName
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+          Environment:
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: production
+            - Name: APP_S3_BUCKET_NAME
+              Value: !Ref S3BucketName
 
-  # 6. CloudWatch Log Group to store container logs
-  LogGroup:
-    Type: AWS::Logs::LogGroup
+  ECSService:
+    Type: AWS::ECS::Service
     Properties:
-      LogGroupName: /ecs/secret-mission-app
-      RetentionInDays: 7
-
-Outputs:
-  ClusterName:
-    Description: The name of the ECS cluster.
-    Value: !Ref ECSCluster
-  ECRRepositoryUri:
-    Description: The URI of the ECR repository.
-    Value: !GetAtt ECRRepository.RepositoryUri
+      ServiceName: secret-mission-service
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref SubnetIdOne
+            - !Ref SubnetIdTwo
+          SecurityGroups:
+            - !Ref DefaultSecurityGroupId
