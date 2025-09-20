@@ -1,6 +1,10 @@
 {
   "family": "secret-mission-task",
   "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "EXECUTION_ROLE_ARN_PLACEHOLDER",
   "containerDefinitions": [
     {
       "name": "secret-mission-container",
@@ -13,12 +17,6 @@
         }
       ],
       "essential": true,
-      "environment": [
-        {
-          "name": "SPRING_PROFILES_ACTIVE",
-          "value": "production"
-        }
-      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
@@ -28,10 +26,5 @@
         }
       }
     }
-  ],
-  "requiresCompatibilities": [
-    "FARGATE"
-  ],
-  "cpu": "256",
-  "memory": "512"
+  ]
 }

@@ -35,7 +35,7 @@ Resources:
                 Action:
                   - ecs:DescribeServices
                   - ecs:DescribeTaskDefinition
-                  - ecs:RegisterTaskDefinition 
+                  - ecs:RegisterTaskDefinition
                 Resource: "*"
               # Allows updating the ECS service to deploy the new image
               - Effect: Allow
