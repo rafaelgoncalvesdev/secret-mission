@@ -30,11 +30,12 @@ Resources:
         - PolicyName: ECSDeployPolicy
           PolicyDocument:
             Statement:
-              # Allows describing ECS services and task definitions
+              # Allows describing and registering ECS task definitions
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:DescribeTaskDefinition
+                  - ecs:RegisterTaskDefinition 
                 Resource: "*"
               # Allows updating the ECS service to deploy the new image
               - Effect: Allow
@@ -52,3 +53,4 @@ Outputs:
   GitHubActionsRoleArn:
     Description: The ARN of the IAM role for GitHub Actions.
     Value: !GetAtt GitHubActionsRole.Arn
+
