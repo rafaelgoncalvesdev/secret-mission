@@ -1,0 +1,33 @@
+spring.application.name=secret-mission:
+
+# General application settings
+app:
+  s3:
+    bucket-name: "message-bucket"
+
+# Spring Cloud AWS specific settings
+spring:
+  cloud:
+    aws:
+      region:
+        static: sa-east-1
+      credentials:
+        # This tells the SDK to look for credentials automatically (e.g., from ~/.aws/credentials)
+        # It's a secure way to avoid hardcoding keys.
+        use-default-chain: true
+
+---
+# Settings specific to the 'local' profile
+spring:
+  config:
+    activate:
+      on-profile: "local"
+  cloud:
+    aws:
+      s3:
+        # This endpoint setting is ONLY used when the 'local' profile is active.
+        # It redirects all S3 calls to our LocalStack container.
+        endpoint: http://localhost:4566
+        # This is required for LocalStack to work correctly with the AWS SDK v2
+        path-style-access-enabled: true
+
