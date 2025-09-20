@@ -42,15 +42,14 @@ Resources:
                 Action:
                   - ecs:UpdateService
                 Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/secret-mission-cluster/*"
-              # Allows the deploy action to pass the correct role to the new task
+              # Allows the deploy action to pass the correct roles to the new task
               - Effect: Allow
                 Action: iam:PassRole
                 Resource:
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole"
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/AppTaskRole-*" # Using wildcard because CF adds random suffix
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/ECSTaskExecutionRole" # <-- TYPO IS FIXED HERE
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/AppTaskRole-*"
 
 Outputs:
   GitHubActionsRoleArn:
     Description: The ARN of the IAM role for GitHub Actions.
     Value: !GetAtt GitHubActionsRole.Arn
-
