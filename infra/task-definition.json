@@ -1,0 +1,37 @@
+{
+  "family": "secret-mission-task",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "secret-mission-container",
+      "image": "<IMAGE_URI>",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "production"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/secret-mission-task",
+          "awslogs-region": "sa-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512"
+}

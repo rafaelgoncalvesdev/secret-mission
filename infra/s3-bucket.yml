@@ -1,0 +1,41 @@
+# This line specifies the version of the CloudFormation template language.
+AWSTemplateFormatVersion: '2010-09-09'
+
+# A description of what this template does.
+Description: CloudFormation template to create the S3 bucket for the secret-mission application.
+
+# --- Parameters ---
+# Parameters allow us to input custom values when we deploy the template.
+Parameters:
+  BucketNameParameter:
+    Type: String
+    Description: A globally unique name for the S3 bucket.
+
+# --- Resources ---
+# This is the main section where we define the AWS resources to be created.
+Resources:
+  # This is the logical ID for our S3 bucket resource within this template.
+  MessageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # We use the !Ref intrinsic function to get the value provided in the BucketNameParameter.
+      BucketName: !Ref BucketNameParameter
+
+      # It is a security best practice to block all public access to S3 buckets by default.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+      # Tags are key-value pairs that help you manage, identify, and filter your resources.
+      Tags:
+        - Key: Project
+          Value: secret-mission
+
+# --- Outputs ---
+# Outputs display information about the created resources after the stack is deployed.
+Outputs:
+  BucketNameOutput:
+    Description: The name of the created S3 bucket.
+    Value: !Ref MessageBucket

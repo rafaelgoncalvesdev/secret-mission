@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This template creates the IAM Role that allows GitHub Actions to securely
+  authenticate with AWS using OIDC and deploy to ECS.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Description: Your GitHub username or organization name.
+  GitHubRepo:
+    Type: String
+    Description: The name of your GitHub repository.
+
+Resources:
+  # IAM Role that GitHub Actions will assume
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GitHubActionsRole-ECS-Deploy
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringLike:
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubOrg}/${GitHubRepo}:*"
+      Policies:
+        - PolicyName: ECSDeployPolicy
+          PolicyDocument:
+            Statement:
+              # Allows describing ECS services and task definitions
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:DescribeTaskDefinition
+                Resource: "*"
+              # Allows updating the ECS service to deploy the new image
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/secret-mission-cluster/*"
+              # Allows the deploy action to pass the correct role to the new task
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/AppTaskRole-*" # Using wildcard because CF adds random suffix
+
+Outputs:
+  GitHubActionsRoleArn:
+    Description: The ARN of the IAM role for GitHub Actions.
+    Value: !GetAtt GitHubActionsRole.Arn

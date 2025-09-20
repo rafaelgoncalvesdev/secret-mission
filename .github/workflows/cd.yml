@@ -1,0 +1,66 @@
+name: CD - Deploy to AWS ECS
+
+# This workflow is triggered on pushes to the 'dev' branch
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    # These permissions are required for OIDC authentication with AWS and for reading packages.
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+
+    steps:
+      # Step 1: Check out the repository's code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Configure AWS credentials using OIDC
+      # This action securely logs into AWS using the Role ARN stored in GitHub Secrets.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1 # Should match your ECS cluster region
+
+      # Step 3: Log in to the GitHub Container Registry
+      # This is needed to pull the image information.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 4: Download the task definition blueprint from the repository
+      - name: Download task definition blueprint
+        run: cp infra/task-definition.json task-definition.json
+
+      # Step 5: Fill in the new image URI in the ECS task definition
+      # This action takes our blueprint file and replaces the <IMAGE_URI> placeholder
+      # with the actual URI of the image that was just built.
+      - name: Render Amazon ECS task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: secret-mission-container
+          image: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+
+      # Step 6: Deploy the new task definition to the ECS service
+      # This action registers the new task definition with AWS and tells the ECS service
+      # to start a new task using it, resulting in a zero-downtime deployment.
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: secret-mission-service
+          cluster: secret-mission-cluster
+          wait-for-service-stability: true
+
