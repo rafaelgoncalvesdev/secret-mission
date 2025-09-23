@@ -94,7 +94,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name secret-mission-extractor-lambda \
-            --template-file infra/lambda-extractor.yml \
+            --template-file infra/lambda-extractor.yaml \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
               DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
