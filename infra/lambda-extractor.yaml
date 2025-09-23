@@ -55,7 +55,7 @@ Resources:
       Role: !GetAtt LambdaExtractorRole.Arn
       Code:
         S3Bucket: !Ref S3BucketName
-        S3Key: "db-extractor-lambda.zip"
+        S3Key: "lambda-artifacts/db-extractor.zip"
 
       Environment:
         Variables:
