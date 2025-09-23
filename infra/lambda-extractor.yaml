@@ -1,4 +1,4 @@
-AWSTemplateFormat: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   This template defines the Extractor Lambda function,
   which reads data from DynamoDb and writes it as a JSON file to an S3 Bucket.
