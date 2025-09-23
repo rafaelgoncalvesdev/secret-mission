@@ -16,8 +16,7 @@ public class S3Service {
     private final S3Client s3Client;
     private final String bucketName;
 
-    // This is the only line that has changed.
-    // It now reads the bucket name from either the application.yml OR an environment variable.
+    //reads the bucket name from either the application.yml OR an environment variable.
     public S3Service(S3Client s3Client, @Value("${APP_S3_BUCKET_NAME:${app.s3.bucket-name}}") String bucketName){
         this.s3Client = s3Client;
         this.bucketName = bucketName;

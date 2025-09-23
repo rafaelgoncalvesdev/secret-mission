@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   This template creates the core ECS infrastructure. It uses the default VPC's
-  subnets and security group for simplicity and reliability.
+  subnets and creates a dedicated security group for the service.
 
 Parameters:
   S3BucketName:
@@ -16,9 +16,6 @@ Parameters:
   SubnetIdTwo:
     Type: AWS::EC2::Subnet::Id
     Description: The ID of the second subnet for the ECS service.
-  DefaultSecurityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: The ID of the default security group for the VPC.
 
 Resources:
   ECRRepository:
@@ -65,6 +62,18 @@ Resources:
                 Action: s3:PutObject
                 Resource: !Sub "arn:aws:s3:::${S3BucketName}/*"
 
+  # This is the dedicated Security Group for our service.
+  # It explicitly allows incoming traffic on port 8080 from the internet.
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow HTTP traffic on port 8080 for the ECS service"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -106,5 +115,6 @@ Resources:
           Subnets:
             - !Ref SubnetIdOne
             - !Ref SubnetIdTwo
+          # This now correctly refers to the new, dedicated security group.
           SecurityGroups:
-            - !Ref DefaultSecurityGroupId
+            - !GetAtt AppSecurityGroup.GroupId

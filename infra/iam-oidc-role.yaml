@@ -10,6 +10,9 @@ Parameters:
   GitHubRepo:
     Type: String
     Description: The name of your GitHub repository.
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket that stores the deployment files.
 
 Resources:
   # IAM Role that GitHub Actions will assume
@@ -46,8 +49,13 @@ Resources:
               - Effect: Allow
                 Action: iam:PassRole
                 Resource:
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/ECSTaskExecutionRole" # <-- TYPO IS FIXED HERE
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/ECSTaskExecutionRole"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/AppTaskRole-*"
+
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${S3BucketName}/lambda-artifacts/*"
 
 Outputs:
   GitHubActionsRoleArn:

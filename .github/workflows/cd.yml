@@ -1,4 +1,4 @@
-name: CD - Deploy to AWS ECS
+name: CD - Deploy to AWS ECS and Lambda
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to ECS
+    name: Deploy to AWS
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -55,3 +55,23 @@ jobs:
           service: secret-mission-service
           cluster: secret-mission-cluster
           wait-for-service-stability: true
+
+      - name: Download Lambda zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: db-extractor-lambda-zip
+          path: lambda-artifacts
+
+      - name: Upload Lambda zip to S3
+        run: |
+          aws s3 cp lambda-artifacts/db-extractor.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/db-extractor.zip
+
+      - name: Deploy Extractor Lambda to CloudFormation
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-extractor-lambda \
+            --template-file infra/lambda-extractor.yml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }}
