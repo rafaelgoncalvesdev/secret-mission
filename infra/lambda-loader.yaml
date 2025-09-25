@@ -3,7 +3,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
   DynamoDbTableName:
     Type: String
-    Description: the name of the dynamodb table to load data into.
+    Description: The name of the DynamoDB table to read from.
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket that stores the Lambda code.
 
 Resources:
   # iam role for the data loader lambda
@@ -39,15 +42,13 @@ Resources:
     Properties:
       FunctionName: data-loader-lambda
       Runtime: python3.11
-      # this must match our standard python filename
       Handler: lambda_function.lambda_handler
       Role: !GetAtt DataLoaderRole.Arn
       Code:
-        # this is a placeholder that our pipeline will use
-        S3Bucket: !Sub "secret-mission-bucket-${AWS::AccountId}"
+        S3Bucket: !Ref S3BucketName
         S3Key: "lambda-artifacts/data-loader.zip"
       Environment:
         Variables:
           DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
-      # increased timeout for a large data loading job
       Timeout: 300
+
