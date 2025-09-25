@@ -30,28 +30,46 @@ Resources:
               StringLike:
                 "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubOrg}/${GitHubRepo}:*"
       Policies:
-        - PolicyName: ECSDeployPolicy
+        - PolicyName: GitHubActionsDeployPolicy
           PolicyDocument:
             Statement:
-              # Allows describing and registering ECS task definitions
+              #permissions for the pipeline to manage cloudformation stacks
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/secret-mission-*/*"
+
+              #permissions for the pipeline to manage the specific iam roles for our lambdas
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/secret-mission-*-lambda-*"
+
+              #permissions for ecs
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:DescribeTaskDefinition
                   - ecs:RegisterTaskDefinition
-                Resource: "*"
-              # Allows updating the ECS service to deploy the new image
-              - Effect: Allow
-                Action:
                   - ecs:UpdateService
-                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/secret-mission-cluster/*"
-              # Allows the deploy action to pass the correct roles to the new task
+                Resource: "*"
+
+              #permission to pass roles to ecs
               - Effect: Allow
                 Action: iam:PassRole
                 Resource:
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/ECSTaskExecutionRole"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/AppTaskRole-*"
 
+              #permission to upload lambda artifacts
               - Effect: Allow
                 Action:
                   - s3:PutObject
