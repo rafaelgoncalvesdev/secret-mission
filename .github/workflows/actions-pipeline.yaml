@@ -119,7 +119,8 @@ jobs:
             --template-file infra/lambda-loader.yaml \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
-              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} 
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} 
 
       - name: Get AWS Account ID
         id: get-account-id
