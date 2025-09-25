@@ -10,11 +10,9 @@ s3_client = boto3.client('s3')
 def lambda_handler(event, context):
 
     # --- 1. Get Configuration from Environment Variables ---
-    # CORRECTED: 'environ' typo fixed and variable name standardized.
     table_name = os.environ.get('DYNAMODB_TABLE_NAME')
     bucket_name = os.environ.get('S3_BUCKET_NAME')
 
-    # CORRECTED: Error message now accurately reflects the variable names.
     if not table_name or not bucket_name:
         print("Error: DYNAMODB_TABLE_NAME or S3_BUCKET_NAME environment variables not set.")
         return {'statusCode': 500, 'body': json.dumps('Configuration error.')}
@@ -40,7 +38,6 @@ def lambda_handler(event, context):
 
         s3_client.put_object(Bucket=bucket_name, Key=output_key, Body=json_data)
 
-        # CORRECTED: Log message is now more specific.
         print(f"Successfully uploaded {output_key}")
 
         # --- 4. Return a Success Response ---

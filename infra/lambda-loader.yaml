@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  DynamoDbTableName:
+    Type: String
+    Description: the name of the dynamodb table to load data into.
+
+Resources:
+  # iam role for the data loader lambda
+  DataLoaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBBatchWritePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:BatchWriteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDbTableName}"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+  # the lambda function resource
+  DataLoaderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: data-loader-lambda
+      Runtime: python3.11
+      # this must match our standard python filename
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt DataLoaderRole.Arn
+      Code:
+        # this is a placeholder that our pipeline will use
+        S3Bucket: !Sub "secret-mission-bucket-${AWS::AccountId}"
+        S3Key: "lambda-artifacts/data-loader.zip"
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
+      # increased timeout for a large data loading job
+      Timeout: 300

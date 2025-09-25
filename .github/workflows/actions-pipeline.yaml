@@ -51,6 +51,19 @@ jobs:
           name: db-extractor-lambda-zip
           path: lambda-functions/db-extractor.zip
 
+      # NEW: packaging for the data loader lambda
+      - name: Zip Data Loader Lambda function
+        run: |
+          cd lambda-functions/data-loader
+          zip -r ../data-loader.zip .
+
+      # NEW: uploading the new artifact
+      - name: Upload Data Loader Lambda artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-loader-lambda-zip
+          path: lambda-functions/data-loader.zip
+
   # --- JOB 2: DEPLOY ---
   deploy:
     name: Deploy to AWS
@@ -90,6 +103,23 @@ jobs:
             --parameter-overrides \
               DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
               S3BucketName=${{ secrets.S3_BUCKET_NAME }}
+          
+        # deployment for the data loader lambda
+      - name: Download Data Loader Lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: data-loader-lambda-zip
+      - name: Upload Data Loader Lambda zip to S3
+        run: |
+          aws s3 cp data-loader.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/data-loader.zip
+      - name: Deploy Data Loader Lambda
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-data-loader-lambda \
+            --template-file infra/lambda-loader.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} 
 
       - name: Get AWS Account ID
         id: get-account-id
