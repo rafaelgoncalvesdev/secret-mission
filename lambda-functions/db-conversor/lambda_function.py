@@ -4,6 +4,7 @@ import json
 import csv
 import xml.etree.ElementTree as ET
 import time
+import uuid
 from io import StringIO
 from urllib.parse import unquote_plus
 
@@ -41,10 +42,13 @@ def lambda_handler(event, context):
     # extract filename without path and extension for job coordination
     filename = source_key.split('/')[-1]
     base_filename = filename.replace('.jsonl', '')
+    
+    # extract extraction folder name from source path
+    extraction_folder = source_key.split('/')[1] if '/' in source_key else 'unknown'
 
     try:
-        # get or create conversion job
-        job_id, output_folder = get_or_create_job(job_table_name, output_format)
+        # get or create conversion job per extraction folder
+        job_id, output_folder = get_or_create_job(job_table_name, output_format, extraction_folder)
 
         # check if this file was already processed
         if is_file_already_processed(job_table_name, job_id, filename):
@@ -98,47 +102,46 @@ def lambda_handler(event, context):
 
         raise e
 
-def get_or_create_job(job_table_name, output_format):
-    """get existing job or create new one for this conversion batch"""
+def get_or_create_job(job_table_name, output_format, extraction_folder):
+    """get existing job or create new one for this extraction folder"""
     table = dynamodb_resource.Table(job_table_name)
-
-    # create job id with current timestamp
+    
+    import uuid
     timestamp = time.strftime('%Y-%m-%dT%H-%M-%SZ', time.gmtime())
-    job_id = f"db-to-{output_format}-{timestamp}"
+    unique_id = str(uuid.uuid4())[:8]
+    job_id = f"db-to-{output_format}-{extraction_folder}-{unique_id}"
     output_folder = job_id
 
     try:
-        # try to get existing job (within last 10 minutes to batch files together)
-        current_time = int(time.time())
-        ten_minutes_ago = current_time - 600
-
-        # scan for recent jobs with same format
+        # check if job already exists for this extraction folder
         response = table.scan(
-            FilterExpression='output_format = :format AND created_at > :time',
+            FilterExpression='extraction_folder = :folder AND output_format = :format',
             ExpressionAttributeValues={
-                ':format': output_format,
-                ':time': ten_minutes_ago
+                ':folder': extraction_folder,
+                ':format': output_format
             }
         )
 
         if response['Items']:
-            # use existing recent job
+            # use existing job for this extraction folder
             existing_job = response['Items'][0]
             return existing_job['job_id'], existing_job['job_id']
 
-        # create new job
+        # create new job for this extraction folder
+        current_time = int(time.time())
         table.put_item(
             Item={
                 'job_id': job_id,
                 'status': 'IN_PROGRESS',
                 'output_format': output_format,
+                'extraction_folder': extraction_folder,
                 'processed_files': [],
                 'created_at': current_time,
                 'updated_at': current_time
             }
         )
 
-        print(f"created new conversion job: {job_id}")
+        print(f"created new conversion job: {job_id} for extraction: {extraction_folder}")
         return job_id, output_folder
 
     except Exception as e:

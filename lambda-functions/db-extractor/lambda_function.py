@@ -69,12 +69,10 @@ def lambda_handler(event, context):
             jsonl_content += json.dumps(regular_dict) + "\n"
 
         # --- create extraction folder and file naming ---
-        # get extraction folder from event (shared across all segments)
+        # get extraction folder from orchestrator event (required)
         extraction_folder = event.get('ExtractionFolder')
         if not extraction_folder:
-            # create new extraction folder if not provided (for backward compatibility)
-            timestamp = time.strftime('%Y-%m-%dT%H-%M-%SZ', time.gmtime())
-            extraction_folder = f"extraction-{timestamp}"
+            raise Exception("ExtractionFolder must be provided by orchestrator")
 
         output_key = f"records/{extraction_folder}/UserDataTable-dump-segment-{segment}.jsonl"
 

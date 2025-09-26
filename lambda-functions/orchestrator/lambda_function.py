@@ -29,13 +29,19 @@ def lambda_handler(event, context):
 
         print(f"table has {total_items} items. starting {total_segments} parallel workers.")
 
+        # create shared extraction folder for all workers
+        import time
+        timestamp = time.strftime('%Y-%m-%dT%H-%M-%SZ', time.gmtime())
+        extraction_folder = f"extraction-from-{table_name}-{timestamp}"
+        
         # loop to invoke one worker for each segment
         for i in range(total_segments):
 
             # create the event payload for the worker
             payload = {
                 'Segment': i,
-                'TotalSegments': total_segments
+                'TotalSegments': total_segments,
+                'ExtractionFolder': extraction_folder
             }
 
             # invoke the worker lambda function asynchronously
