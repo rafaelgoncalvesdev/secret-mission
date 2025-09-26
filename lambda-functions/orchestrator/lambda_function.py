@@ -5,7 +5,7 @@ import math
 
 # initialize aws clients
 dynamodb_client = boto3.client('dynamodb')
-lambda_client = boto.client('lambda')
+lambda_client = boto3.client('lambda')
 
 def lambda_handler(event, context):
 
