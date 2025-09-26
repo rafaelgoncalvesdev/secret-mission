@@ -69,16 +69,7 @@ jobs:
           name: data-loader-lambda-zip
           path: lambda-functions/data-loader.zip
 
-      # added: packaging for the new orchestrator lambda
-      - name: zip orchestrator lambda function
-        run: |
-          cd lambda-functions/orchestrator
-          zip -r ../orchestrator.zip .
-      - name: upload orchestrator lambda artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: orchestrator-lambda-zip
-          path: lambda-functions/orchestrator.zip
+
 
   # job 2: deploy
   deploy:
@@ -133,23 +124,7 @@ jobs:
             --parameter-overrides \
               DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }}
 
-      - name: download orchestrator lambda artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: orchestrator-lambda-zip
-      - name: upload orchestrator lambda zip to s3
-        run: |
-          aws s3 cp orchestrator.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/orchestrator.zip
-      - name: deploy orchestrator lambda
-        run: |
-          aws cloudformation deploy \
-            --stack-name secret-mission-orchestrator-lambda \
-            --template-file infra/lambda-orchestrator.yaml \
-            --capabilities CAPABILITY_IAM \
-            --parameter-overrides \
-              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
-              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
-              WorkerFunctionName=db-extractor-lambda
+
 
       - name: get aws account id
         id: get-account-id
