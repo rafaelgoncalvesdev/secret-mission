@@ -68,10 +68,15 @@ def lambda_handler(event, context):
             regular_dict = {k: deserializer.deserialize(v) for k, v in item.items()}
             jsonl_content += json.dumps(regular_dict) + "\n"
 
-        # --- use naming convention for the output file ---
-        timestamp = time.strftime('%Y-%m-%dT%H-%M-%SZ', time.gmtime())
-        unique_id = str(uuid.uuid4())
-        output_key = f"records/UserDataTable-dump-{timestamp}_{unique_id}.jsonl"
+        # --- create extraction folder and file naming ---
+        # get extraction folder from event (shared across all segments)
+        extraction_folder = event.get('ExtractionFolder')
+        if not extraction_folder:
+            # create new extraction folder if not provided (for backward compatibility)
+            timestamp = time.strftime('%Y-%m-%dT%H-%M-%SZ', time.gmtime())
+            extraction_folder = f"extraction-{timestamp}"
+
+        output_key = f"records/{extraction_folder}/UserDataTable-dump-segment-{segment}.jsonl"
 
         # upload the batch file to the 'records/' prefix in s3
         s3_client.put_object(
