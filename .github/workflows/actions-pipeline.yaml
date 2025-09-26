@@ -124,7 +124,25 @@ jobs:
             --parameter-overrides \
               DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }}
 
-
+      - name: download orchestrator lambda zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: orchestrator-lambda-zip
+          path: lambda-artifacts
+      - name: upload orchestrator lambda zip to s3
+        run: |
+          aws s3 cp lambda-artifacts/orchestrator.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/orchestrator.zip
+      - name: deploy orchestrator lambda to cloudformation
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-orchestrator-lambda \
+            --template-file infra/lambda-orchestrator.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
+              WorkerFunctionName=db-extractor-lambda \
+              TargetConcurrency=${{ secrets.TARGET_CONCURRENCY }}
 
       - name: get aws account id
         id: get-account-id
@@ -153,25 +171,3 @@ jobs:
           service: secret-mission-service
           cluster: secret-mission-cluster
           wait-for-service-stability: true
-
-      - name: download orchestrator lambda zip artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: orchestrator-lambda-zip
-          path: lambda-artifacts
-
-      - name: upload orchestrator lambda zip to s3
-        run: |
-          aws s3 cp lambda-artifacts/orchestrator.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/orchestrator.zip
-
-      - name: deploy orchestrator lambda to cloudformation
-        run: |
-          aws cloudformation deploy \
-            --stack-name secret-mission-orchestrator-lambda \
-            --template-file infra/lambda-orchestrator.yaml \
-            --capabilities CAPABILITY_IAM \
-            --parameter-overrides \
-              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
-              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
-              WorkerFunctionName=db-extractor-lambda \
-              TargetConcurrency=${{ secrets.TARGET_CONCURRENCY }}
