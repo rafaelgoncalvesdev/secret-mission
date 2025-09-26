@@ -1,4 +1,3 @@
-# This is the final, unified CI/CD pipeline, with the corrected zip command.
 name: CI/CD - Build, Package, and Deploy to AWS
 
 on:
@@ -7,32 +6,32 @@ on:
       - "dev"
 
 jobs:
-  # --- JOB 1: BUILD ---
+  # job 1: build
   build:
-    name: Build Docker and Package Lambda
+    name: Build Docker and Package Lambdas
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout repository
+      - name: checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: set up jdk 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Log in to GitHub Container Registry
+      - name: log in to github container registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: build and push docker image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -40,31 +39,38 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
 
-      - name: Zip Lambda function code
+      - name: zip extractor (worker) lambda function
         run: |
           cd lambda-functions/db-extractor
           zip -r ../db-extractor.zip .
-
-      - name: Upload Lambda zip file as artifact
+      - name: upload extractor lambda artifact
         uses: actions/upload-artifact@v4
         with:
           name: db-extractor-lambda-zip
           path: lambda-functions/db-extractor.zip
 
-      # NEW: packaging for the data loader lambda
-      - name: Zip Data Loader Lambda function
+      - name: zip data loader lambda function
         run: |
           cd lambda-functions/data-loader
           zip -r ../data-loader.zip .
-
-      # NEW: uploading the new artifact
-      - name: Upload Data Loader Lambda artifact
+      - name: upload data loader lambda artifact
         uses: actions/upload-artifact@v4
         with:
           name: data-loader-lambda-zip
           path: lambda-functions/data-loader.zip
 
-  # --- JOB 2: DEPLOY ---
+      # added: packaging for the new orchestrator lambda
+      - name: zip orchestrator lambda function
+        run: |
+          cd lambda-functions/orchestrator
+          zip -r ../orchestrator.zip .
+      - name: upload orchestrator lambda artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-lambda-zip
+          path: lambda-functions/orchestrator.zip
+
+  # job 2: deploy
   deploy:
     name: Deploy to AWS
     runs-on: ubuntu-latest
@@ -75,26 +81,23 @@ jobs:
       packages: read
 
     steps:
-      - name: Checkout code
+      - name: checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: sa-east-1
 
-      - name: Download Lambda zip artifact
+      - name: download extractor (worker) lambda artifact
         uses: actions/download-artifact@v4
         with:
           name: db-extractor-lambda-zip
-          path: lambda-artifacts
-
-      - name: Upload Lambda zip to S3
+      - name: upload extractor lambda zip to s3
         run: |
-          aws s3 cp lambda-artifacts/db-extractor.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/db-extractor.zip
-
-      - name: Deploy Extractor Lambda to CloudFormation
+          aws s3 cp db-extractor.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/db-extractor.zip
+      - name: deploy extractor (worker) lambda
         run: |
           aws cloudformation deploy \
             --stack-name secret-mission-extractor-lambda \
@@ -103,50 +106,62 @@ jobs:
             --parameter-overrides \
               DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
               S3BucketName=${{ secrets.S3_BUCKET_NAME }}
-          
-        # deployment for the data loader lambda
-      - name: Download Data Loader Lambda artifact
+
+      - name: download data loader lambda artifact
         uses: actions/download-artifact@v4
         with:
           name: data-loader-lambda-zip
-      - name: Upload Data Loader Lambda zip to S3
+      - name: upload data loader lambda zip to s3
         run: |
           aws s3 cp data-loader.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/data-loader.zip
-      - name: Deploy Data Loader Lambda
+      - name: deploy data loader lambda
         run: |
           aws cloudformation deploy \
             --stack-name secret-mission-data-loader-lambda \
             --template-file infra/lambda-loader.yaml \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
-              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
-              S3BucketName=${{ secrets.S3_BUCKET_NAME }} 
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }}
 
-      - name: Get AWS Account ID
+      - name: download orchestrator lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: orchestrator-lambda-zip
+      - name: upload orchestrator lambda zip to s3
+        run: |
+          aws s3 cp orchestrator.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/orchestrator.zip
+      - name: deploy orchestrator lambda
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-orchestrator-lambda \
+            --template-file infra/lambda-orchestrator.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
+              WorkerFunctionName=db-extractor-lambda
+
+      - name: get aws account id
         id: get-account-id
         run: echo "aws_account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
-
-      - name: Substitute Execution Role ARN
+      - name: substitute execution role arn
         run: |
           EXECUTION_ROLE_ARN="arn:aws:iam::${{ env.aws_account_id }}:role/ECSTaskExecutionRole"
           sed -i "s|EXECUTION_ROLE_ARN_PLACEHOLDER|${EXECUTION_ROLE_ARN}|g" infra/task-definition.json
-
-      - name: Log in to GitHub Container Registry
+      - name: log in to github container registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Render Amazon ECS task definition
+      - name: render amazon ecs task definition
         id: render-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: infra/task-definition.json
           container-name: secret-mission-container
           image: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-
-      - name: Deploy Amazon ECS task definition
+      - name: deploy amazon ecs task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.render-task-def.outputs.task-definition }}

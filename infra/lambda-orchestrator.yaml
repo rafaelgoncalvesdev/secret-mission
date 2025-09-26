@@ -1,0 +1,77 @@
+# FILE: infra/lambda-orchestrator.yaml
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  This template defines the Orchestrator Lambda function, which calculates
+  the workload and invokes the extractor/worker lambdas in parallel.
+
+Parameters:
+  DynamoDbTableName:
+    Type: String
+    Description: the name of the dynamodb table to read from.
+  S3BucketName:
+    Type: String
+    Description: the name of the s3 bucket for lambda code artifacts.
+  WorkerFunctionName:
+    Type: String
+    Description: the name of the worker lambda function to invoke.
+  
+  # changed: TargetConcurrency is now a proper, tunable parameter.
+  # it has a default value, but we can override it at deploy time.
+  TargetConcurrency:
+    Type: Number
+    Description: the desired number of parallel worker lambdas to invoke.
+    Default: 50
+
+Resources:
+  # iam role for the orchestrator lambda
+  LambdaOrchestratorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaOrchestratorPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeTable
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDbTableName}"
+
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${WorkerFunctionName}"
+
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+  # the orchestrator lambda function resource
+  OrchestratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: orchestrator-lambda
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaOrchestratorRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: "lambda-artifacts/orchestrator.zip"
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
+          WORKER_FUNCTION_NAME: !Ref WorkerFunctionName
+          TARGET_CONCURRENCY: !Ref TargetConcurrency
+      Timeout: 60
