@@ -16,9 +16,7 @@ Parameters:
   WorkerFunctionName:
     Type: String
     Description: the name of the worker lambda function to invoke.
-  
-  # changed: TargetConcurrency is now a proper, tunable parameter.
-  # it has a default value, but we can override it at deploy time.
+
   TargetConcurrency:
     Type: Number
     Description: the desired number of parallel worker lambdas to invoke.

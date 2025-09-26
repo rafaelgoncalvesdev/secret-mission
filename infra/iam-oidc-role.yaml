@@ -56,6 +56,7 @@ Resources:
                   - iam:PassRole
                 Resource:
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/secret-mission-*-lambda-*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/secret-mission-orchestrator--*"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/ECSTaskExecutionRole"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/AppTaskRole-*"
 
