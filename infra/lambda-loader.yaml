@@ -50,5 +50,5 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
-      Timeout: 300
+      Timeout: 900
 
