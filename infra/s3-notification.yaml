@@ -1,131 +1,25 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  This template configures S3 bucket notifications using a custom resource
-  to trigger the db-conversor Lambda when JSONL files are uploaded to records/ folder.
+Description: Simple S3 bucket notification configuration for db-conversor Lambda
 
 Parameters:
   S3BucketName:
     Type: String
-    Description: The name of the existing S3 bucket.
+    Description: Name of the existing S3 bucket
   ConversorLambdaArn:
     Type: String
-    Description: The ARN of the db-conversor Lambda function.
+    Description: ARN of the Lambda function to trigger
 
 Resources:
-  # IAM role for the custom resource Lambda
-  CustomResourceRole:
-    Type: AWS::IAM::Role
+  # Permission for S3 to invoke the Lambda function
+  S3InvokePermission:
+    Type: AWS::Lambda::Permission
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: S3NotificationPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetBucketNotification
-                  - s3:PutBucketNotification
-                Resource: !Sub "arn:aws:s3:::${S3BucketName}"
-
-  # Custom resource Lambda to configure S3 notification
-  S3NotificationFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Runtime: python3.11
-      Handler: index.handler
-      Role: !GetAtt CustomResourceRole.Arn
-      Timeout: 60
-      Code:
-        ZipFile: |
-          import boto3
-          import json
-          import cfnresponse
-          
-          def handler(event, context):
-              s3 = boto3.client('s3')
-          
-              try:
-                  bucket_name = event['ResourceProperties']['BucketName']
-                  lambda_arn = event['ResourceProperties']['LambdaArn']
-          
-                  if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
-                      # Get existing notification configuration
-                      try:
-                          existing_config = s3.get_bucket_notification_configuration(Bucket=bucket_name)
-                      except:
-                          existing_config = {}
-          
-                      # Add our Lambda configuration
-                      lambda_configs = existing_config.get('LambdaConfigurations', [])
-          
-                      # Remove any existing config for our Lambda
-                      lambda_configs = [config for config in lambda_configs if config.get('LambdaFunctionArn') != lambda_arn]
-          
-                      # Add new configuration
-                      lambda_configs.append({
-                          'Id': 'db-conversor-trigger',
-                          'LambdaFunctionArn': lambda_arn,
-                          'Events': ['s3:ObjectCreated:*'],
-                          'Filter': {
-                              'Key': {
-                                  'FilterRules': [
-                                      {'Name': 'prefix', 'Value': 'records/'},
-                                      {'Name': 'suffix', 'Value': '.jsonl'}
-                                  ]
-                              }
-                          }
-                      })
-          
-                      # Update notification configuration
-                      notification_config = existing_config.copy()
-                      notification_config['LambdaConfigurations'] = lambda_configs
-          
-                      s3.put_bucket_notification_configuration(
-                          Bucket=bucket_name,
-                          NotificationConfiguration=notification_config
-                      )
-          
-                  elif event['RequestType'] == 'Delete':
-                      # Remove our Lambda configuration
-                      try:
-                          existing_config = s3.get_bucket_notification_configuration(Bucket=bucket_name)
-                          lambda_configs = existing_config.get('LambdaConfigurations', [])
-                          lambda_configs = [config for config in lambda_configs if config.get('LambdaFunctionArn') != lambda_arn]
-          
-                          notification_config = existing_config.copy()
-                          notification_config['LambdaConfigurations'] = lambda_configs
-          
-                          s3.put_bucket_notification_configuration(
-                              Bucket=bucket_name,
-                              NotificationConfiguration=notification_config
-                          )
-                      except:
-                          pass  # Ignore errors during deletion
-          
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
-          
-              except Exception as e:
-                  print(f"Error: {str(e)}")
-                  cfnresponse.send(event, context, cfnresponse.FAILED, {})
-
-  # Custom resource to trigger the notification setup
-  S3NotificationCustomResource:
-    Type: AWS::CloudFormation::CustomResource
-    Properties:
-      ServiceToken: !GetAtt S3NotificationFunction.Arn
-      BucketName: !Ref S3BucketName
-      LambdaArn: !Ref ConversorLambdaArn
+      FunctionName: !Ref ConversorLambdaArn
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::${S3BucketName}"
 
 Outputs:
-  NotificationStatus:
-    Description: S3 notification configuration status
-    Value: "S3 bucket notification configured for records/*.jsonl files"
+  PermissionArn:
+    Description: ARN of the Lambda permission
+    Value: !Ref S3InvokePermission

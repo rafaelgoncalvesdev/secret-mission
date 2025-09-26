@@ -52,11 +52,14 @@ Resources:
                   - iam:DeleteRole
                   - iam:PutRolePolicy
                   - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
                   - iam:GetRole
                   - iam:PassRole
                 Resource:
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/secret-mission-*-lambda-*"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/secret-mission-*-lam-*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/secret-mission-*-CustomResourceRole-*"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/secret-mission-orchestrator--*"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/ECSTaskExecutionRole"
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/AppTaskRole-*"
@@ -69,6 +72,9 @@ Resources:
                   - lambda:UpdateFunctionCode
                   - lambda:UpdateFunctionConfiguration
                   - lambda:GetFunction
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:InvokeFunction
                 Resource: 
                   - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:secret-mission-*"
                   - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:data-loader-lambda"
