@@ -63,7 +63,8 @@ def lambda_handler(event, context):
         for item in segment_items:
             # important: boto3 scan returns dynamodb json. we need to convert it to a regular dict.
             # a deserializer handles this conversion.
-            deserializer = boto3.dynamodb.types.TypeDeserializer()
+            from boto3.dynamodb.types import TypeDeserializer
+            deserializer = TypeDeserializer()
             regular_dict = {k: deserializer.deserialize(v) for k, v in item.items()}
             jsonl_content += json.dumps(regular_dict) + "\n"
 

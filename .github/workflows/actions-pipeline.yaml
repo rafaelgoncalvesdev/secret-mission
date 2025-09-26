@@ -69,6 +69,16 @@ jobs:
           name: data-loader-lambda-zip
           path: lambda-functions/data-loader.zip
 
+      - name: zip db conversor lambda function
+        run: |
+          cd lambda-functions/db-conversor
+          zip -r ../db-conversor.zip .
+      - name: upload db conversor lambda artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-conversor-lambda-zip
+          path: lambda-functions/db-conversor.zip
+
 
 
   # job 2: deploy
@@ -143,6 +153,34 @@ jobs:
               S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
               WorkerFunctionName=db-extractor-lambda \
               TargetConcurrency=${{ secrets.TARGET_CONCURRENCY }}
+
+      - name: download db conversor lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: db-conversor-lambda-zip
+      - name: upload db conversor lambda zip to s3
+        run: |
+          aws s3 cp db-conversor.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/db-conversor.zip
+      - name: deploy db conversor lambda
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-db-conversor-lambda \
+            --template-file infra/lambda-conversor.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
+              OutputFormat=${{ secrets.OUTPUT_FORMAT }}
+
+      - name: configure s3 bucket notification
+        run: |
+          CONVERSOR_LAMBDA_ARN=$(aws lambda get-function --function-name db-conversor-lambda --query 'Configuration.FunctionArn' --output text)
+          aws cloudformation deploy \
+            --stack-name secret-mission-s3-notification \
+            --template-file infra/s3-notification.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
+              ConversorLambdaArn=$CONVERSOR_LAMBDA_ARN
 
       - name: get aws account id
         id: get-account-id

@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This template defines the DB Conversor Lambda function, which converts JSONL files 
+  from the records/ folder to other formats (CSV, XML) and saves them in processed/ folder.
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket for input and output files.
+  OutputFormat:
+    Type: String
+    Default: csv
+    AllowedValues: [csv, xml]
+    Description: The output format for converted files.
+
+Resources:
+  # DynamoDB table to track conversion jobs
+  ConversionJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-conversion-jobs"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # IAM role for the Lambda function
+  LambdaConversorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      Policies:
+        - PolicyName: LambdaConversorPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 permissions for reading input files and writing output files
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${S3BucketName}/*"
+
+              # DynamoDB permissions for job tracking
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                Resource: !GetAtt ConversionJobsTable.Arn
+
+              # CloudWatch Logs permissions
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+  # Lambda function
+  ConversorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: db-conversor-lambda
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaConversorRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: "lambda-artifacts/db-conversor.zip"
+
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref S3BucketName
+          OUTPUT_FORMAT: !Ref OutputFormat
+          JOB_TABLE_NAME: !Ref ConversionJobsTable
+
+      MemorySize: 256
+      Timeout: 300
+
+  # S3 bucket notification permission for Lambda
+  S3InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ConversorFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::${S3BucketName}"
+
+Outputs:
+  ConversorFunctionName:
+    Description: Name of the conversor Lambda function
+    Value: !Ref ConversorFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-ConversorFunctionName"
+
+  ConversionJobsTableName:
+    Description: Name of the DynamoDB table for tracking conversion jobs
+    Value: !Ref ConversionJobsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ConversionJobsTableName"
