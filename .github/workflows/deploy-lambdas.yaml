@@ -1,0 +1,152 @@
+name: Deploy Lambda Functions
+
+on:
+  workflow_call:
+    inputs:
+      db-extractor-changed:
+        required: false
+        type: string
+        default: 'true'
+      db-conversor-changed:
+        required: false
+        type: string
+        default: 'true'
+      orchestrator-changed:
+        required: false
+        type: string
+        default: 'true'
+      data-loader-changed:
+        required: false
+        type: string
+        default: 'true'
+
+jobs:
+  deploy-db-extractor:
+    if: inputs.db-extractor-changed == 'true'
+    name: Deploy DB Extractor
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+      - name: download extractor lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: db-extractor-lambda-zip
+      - name: upload extractor lambda zip to s3
+        run: |
+          aws s3 cp db-extractor.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/db-extractor.zip
+      - name: deploy extractor lambda
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-extractor-lambda \
+            --template-file infra/lambda-extractor.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }}
+
+  deploy-data-loader:
+    if: inputs.data-loader-changed == 'true'
+    name: Deploy Data Loader
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+      - name: download data loader lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: data-loader-lambda-zip
+      - name: upload data loader lambda zip to s3
+        run: |
+          aws s3 cp data-loader.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/data-loader.zip
+      - name: deploy data loader lambda
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-data-loader-lambda \
+            --template-file infra/lambda-loader.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }}
+
+  deploy-orchestrator:
+    if: inputs.orchestrator-changed == 'true'
+    name: Deploy Orchestrator
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+      - name: download orchestrator lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: orchestrator-lambda-zip
+          path: lambda-artifacts
+      - name: upload orchestrator lambda zip to s3
+        run: |
+          aws s3 cp lambda-artifacts/orchestrator.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/orchestrator.zip
+      - name: deploy orchestrator lambda
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-orchestrator-lambda \
+            --template-file infra/lambda-orchestrator.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              DynamoDbTableName=${{ secrets.DYNAMODB_TABLE_NAME }} \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
+              WorkerFunctionName=db-extractor-lambda \
+              TargetConcurrency=${{ secrets.TARGET_CONCURRENCY }}
+
+  deploy-db-conversor:
+    if: inputs.db-conversor-changed == 'true'
+    name: Deploy DB Conversor
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+      - name: download db conversor lambda artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: db-conversor-lambda-zip
+      - name: upload db conversor lambda zip to s3
+        run: |
+          aws s3 cp db-conversor.zip s3://${{ secrets.S3_BUCKET_NAME }}/lambda-artifacts/db-conversor.zip
+      - name: deploy db conversor lambda
+        run: |
+          aws cloudformation deploy \
+            --stack-name secret-mission-db-conversor-lambda \
+            --template-file infra/lambda-conversor.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
+              OutputFormat=${{ secrets.OUTPUT_FORMAT }}

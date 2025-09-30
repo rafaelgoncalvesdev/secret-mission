@@ -1,0 +1,33 @@
+name: Deploy Supporting Infrastructure
+
+on:
+  workflow_call:
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy S3 Notifications and Supporting Resources
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: configure s3 bucket notification
+        run: |
+          CONVERSOR_LAMBDA_ARN=$(aws lambda get-function --function-name db-conversor-lambda --query 'Configuration.FunctionArn' --output text)
+          aws cloudformation deploy \
+            --stack-name secret-mission-s3-notification \
+            --template-file infra/s3-notification.yaml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              S3BucketName=${{ secrets.S3_BUCKET_NAME }} \
+              ConversorLambdaArn=$CONVERSOR_LAMBDA_ARN

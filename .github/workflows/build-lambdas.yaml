@@ -1,0 +1,86 @@
+name: Build Lambda Functions
+
+on:
+  workflow_call:
+    inputs:
+      db-extractor-changed:
+        required: false
+        type: string
+        default: 'true'
+      db-conversor-changed:
+        required: false
+        type: string
+        default: 'true'
+      orchestrator-changed:
+        required: false
+        type: string
+        default: 'true'
+      data-loader-changed:
+        required: false
+        type: string
+        default: 'true'
+
+jobs:
+  build-db-extractor:
+    if: inputs.db-extractor-changed == 'true'
+    name: Build DB Extractor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: zip db extractor lambda
+        run: |
+          cd lambda-functions/db-extractor
+          zip -r ../db-extractor.zip .
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-extractor-lambda-zip
+          path: lambda-functions/db-extractor.zip
+
+  build-db-conversor:
+    if: inputs.db-conversor-changed == 'true'
+    name: Build DB Conversor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: zip db conversor lambda
+        run: |
+          cd lambda-functions/db-conversor
+          zip -r ../db-conversor.zip .
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-conversor-lambda-zip
+          path: lambda-functions/db-conversor.zip
+
+  build-orchestrator:
+    if: inputs.orchestrator-changed == 'true'
+    name: Build Orchestrator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: zip orchestrator lambda
+        run: |
+          cd lambda-functions/orchestrator
+          zip -r ../orchestrator.zip .
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-lambda-zip
+          path: lambda-functions/orchestrator.zip
+
+  build-data-loader:
+    if: inputs.data-loader-changed == 'true'
+    name: Build Data Loader
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: zip data loader lambda
+        run: |
+          cd lambda-functions/data-loader
+          zip -r ../data-loader.zip .
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-loader-lambda-zip
+          path: lambda-functions/data-loader.zip

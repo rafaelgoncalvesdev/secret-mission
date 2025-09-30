@@ -1,0 +1,83 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - "dev"
+
+jobs:
+  # Detect what changed
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      docker-changed: ${{ steps.changes.outputs.docker }}
+      lambdas-changed: ${{ steps.changes.outputs.lambdas }}
+      db-extractor-changed: ${{ steps.changes.outputs.db-extractor }}
+      db-conversor-changed: ${{ steps.changes.outputs.db-conversor }}
+      orchestrator-changed: ${{ steps.changes.outputs.orchestrator }}
+      data-loader-changed: ${{ steps.changes.outputs.data-loader }}
+      infrastructure-changed: ${{ steps.changes.outputs.infrastructure }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            docker:
+              - 'src/**'
+              - 'Dockerfile'
+              - 'pom.xml'
+            lambdas:
+              - 'lambda-functions/**'
+            db-extractor:
+              - 'lambda-functions/db-extractor/**'
+            db-conversor:
+              - 'lambda-functions/db-conversor/**'
+            orchestrator:
+              - 'lambda-functions/orchestrator/**'
+            data-loader:
+              - 'lambda-functions/data-loader/**'
+            infrastructure:
+              - 'infra/**'
+
+  # Conditional build jobs
+  build-docker:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docker-changed == 'true'
+    uses: ./.github/workflows/build-docker.yaml
+    secrets: inherit
+
+  build-lambdas:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.lambdas-changed == 'true'
+    uses: ./.github/workflows/build-lambdas.yaml
+    with:
+      db-extractor-changed: ${{ needs.detect-changes.outputs.db-extractor-changed }}
+      db-conversor-changed: ${{ needs.detect-changes.outputs.db-conversor-changed }}
+      orchestrator-changed: ${{ needs.detect-changes.outputs.orchestrator-changed }}
+      data-loader-changed: ${{ needs.detect-changes.outputs.data-loader-changed }}
+
+  # Conditional deploy jobs
+  deploy-lambdas:
+    needs: [detect-changes, build-lambdas]
+    if: needs.detect-changes.outputs.lambdas-changed == 'true'
+    uses: ./.github/workflows/deploy-lambdas.yaml
+    secrets: inherit
+    with:
+      db-extractor-changed: ${{ needs.detect-changes.outputs.db-extractor-changed }}
+      db-conversor-changed: ${{ needs.detect-changes.outputs.db-conversor-changed }}
+      orchestrator-changed: ${{ needs.detect-changes.outputs.orchestrator-changed }}
+      data-loader-changed: ${{ needs.detect-changes.outputs.data-loader-changed }}
+
+  deploy-ecs:
+    needs: [detect-changes, build-docker]
+    if: needs.detect-changes.outputs.docker-changed == 'true'
+    uses: ./.github/workflows/deploy-ecs.yaml
+    secrets: inherit
+
+  deploy-infrastructure:
+    needs: [detect-changes, deploy-lambdas]
+    if: needs.detect-changes.outputs.infrastructure-changed == 'true' || needs.detect-changes.outputs.lambdas-changed == 'true'
+    uses: ./.github/workflows/deploy-infrastructure.yaml
+    secrets: inherit
